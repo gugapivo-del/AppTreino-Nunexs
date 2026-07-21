@@ -1153,7 +1153,8 @@ const db = getDatabase(fbApp);
       const btn = document.createElement("button");
       btn.className = "day-tab" + (d === currentWorkoutDay ? " is-active" : "");
       btn.textContent = DAY_SHORT[d];
-      const hasExercises = state.workouts[d].exercises.length > 0;
+      const dayWorkout = state.workouts[d];
+      const hasExercises = !!(dayWorkout && Array.isArray(dayWorkout.exercises) && dayWorkout.exercises.length > 0);
       if (hasExercises) {
         const dot = document.createElement("span");
         dot.className = "day-tab-dot";
@@ -1175,21 +1176,33 @@ const db = getDatabase(fbApp);
 
   function renderWorkoutsPage() {
     renderDayTabs();
-    const workout = state.workouts[currentWorkoutDay];
+    const workout = state.workouts[currentWorkoutDay] || { name: "", exercises: [] };
     document.getElementById("workoutDayTitle").textContent = DAY_LABELS[currentWorkoutDay];
     document.getElementById("workoutNameInput").value = workout.name || "";
 
     const listEl = document.getElementById("exerciseList");
     listEl.innerHTML = "";
 
-    if (workout.exercises.length === 0) {
+    const exercises = Array.isArray(workout.exercises) ? workout.exercises : [];
+
+    if (exercises.length === 0) {
       listEl.innerHTML = `<p class="empty-note">Nenhum exercício cadastrado para ${DAY_LABELS[currentWorkoutDay]} ainda.</p>`;
       return;
     }
 
-    workout.exercises.forEach((ex) => {
-      listEl.appendChild(renderExerciseCard(ex));
+    let renderedCount = 0;
+    exercises.forEach((ex, idx) => {
+      try {
+        listEl.appendChild(renderExerciseCard(ex));
+        renderedCount++;
+      } catch (e) {
+        console.error("Falha ao renderizar exercício no índice " + idx + ":", ex, e);
+      }
     });
+
+    if (renderedCount === 0) {
+      listEl.innerHTML = `<p class="empty-note">Não foi possível exibir os exercícios cadastrados. Veja o console (F12) para detalhes, ou exporte e reimporte seus dados em Perfil → Configurações.</p>`;
+    }
   }
 
   function renderExerciseCard(ex) {
