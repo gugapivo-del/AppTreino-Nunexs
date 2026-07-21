@@ -931,10 +931,27 @@ const db = getDatabase(fbApp);
   let saveDebounceTimer = null;
   let syncIndicatorTimer = null;
 
+  function sanitizeWorkouts(rawWorkouts) {
+    const clean = makeEmptyWorkouts();
+    if (rawWorkouts && typeof rawWorkouts === "object") {
+      DAYS.forEach((d) => {
+        const dayData = rawWorkouts[d];
+        if (dayData && typeof dayData === "object") {
+          clean[d] = {
+            name: typeof dayData.name === "string" ? dayData.name : "",
+            exercises: Array.isArray(dayData.exercises) ? dayData.exercises : []
+          };
+        }
+        // if dayData is missing/malformed, clean[d] keeps the valid empty default
+      });
+    }
+    return clean;
+  }
+
   function mergeIntoDefaults(parsed) {
     parsed = parsed || {};
     state = Object.assign(defaultState(), parsed);
-    state.workouts = Object.assign(makeEmptyWorkouts(), parsed.workouts || {});
+    state.workouts = sanitizeWorkouts(parsed.workouts);
     state.water = Object.assign({ lastResetDate: todayKey(), today: 0, history: {} }, parsed.water || {});
     state.calendar = parsed.calendar || {};
     state.workoutLog = parsed.workoutLog || [];
@@ -1070,7 +1087,7 @@ const db = getDatabase(fbApp);
       d.setDate(now.getDate() + i);
       const dayKey = dowKeyFromDate(d);
       const w = state.workouts[dayKey];
-      if (w && w.exercises.length > 0) {
+      if (w && Array.isArray(w.exercises) && w.exercises.length > 0) {
         return { dayKey, exerciseCount: w.exercises.length, isToday: i === 0, name: w.name };
       }
     }
@@ -1124,7 +1141,8 @@ const db = getDatabase(fbApp);
     const el = document.getElementById("recentPR");
     const allExercises = [];
     DAYS.forEach((d) => {
-      state.workouts[d].exercises.forEach((ex) => {
+      const dayExercises = (state.workouts[d] && Array.isArray(state.workouts[d].exercises)) ? state.workouts[d].exercises : [];
+      dayExercises.forEach((ex) => {
         if (ex.best && ex.best > 0) allExercises.push(ex);
       });
     });
@@ -1556,6 +1574,10 @@ const db = getDatabase(fbApp);
 
   /* ------------------------- STATS ------------------------- */
 
+  function getDayExercises(d) {
+    return (state.workouts[d] && Array.isArray(state.workouts[d].exercises)) ? state.workouts[d].exercises : [];
+  }
+
   function computeStats() {
     const totalWorkouts = state.workoutLog.length;
 
@@ -1564,7 +1586,7 @@ const db = getDatabase(fbApp);
     let maxLoadOverall = 0;
 
     DAYS.forEach((d) => {
-      state.workouts[d].exercises.forEach((ex) => {
+      getDayExercises(d).forEach((ex) => {
         if (ex.best) maxLoadOverall = Math.max(maxLoadOverall, ex.best);
         const mg = ex.muscleGroup || "Outro";
         muscleCounts[mg] = (muscleCounts[mg] || 0) + (ex.history ? ex.history.length : 0);
@@ -1578,7 +1600,7 @@ const db = getDatabase(fbApp);
     let mostExercise = "-";
     const exNameCounts = {};
     DAYS.forEach((d) => {
-      state.workouts[d].exercises.forEach((ex) => {
+      getDayExercises(d).forEach((ex) => {
         const c = ex.history ? ex.history.length : 0;
         exNameCounts[ex.name] = (exNameCounts[ex.name] || 0) + c;
       });
